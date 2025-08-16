@@ -1,6 +1,4 @@
 #!/bin/bash
-# Switch system to UK locale and fix Thunar collation (Arch/XFCE)
-# Improved version with better error handling and validation
 
 set -euo pipefail
 
@@ -63,9 +61,13 @@ else
     exit 1
 fi
 
-# Verify locale was generated
-if ! locale -a | grep -q "^${TARGET_LOCALE}$"; then
+# Verify locale was generated - check for both UTF-8 and utf8 variants
+if locale -a | grep -qE "^en_GB\.(UTF-8|utf8)$"; then
+    print_success "Verified ${TARGET_LOCALE} is available"
+else
     print_error "Failed to generate ${TARGET_LOCALE} - check /etc/locale.gen"
+    print_info "Available locales matching en_GB:"
+    locale -a | grep -i "en_gb" || echo "  (none found)"
     exit 1
 fi
 
@@ -129,11 +131,28 @@ if command -v thunar >/dev/null 2>&1; then
     fi
 fi
 
-# Final verification
+# Final verification - improved to check both config files and available locales
 print_info "Verifying configuration..."
-if grep -q "LANG=${TARGET_LOCALE}" /etc/locale.conf && 
-   grep -q "LC_COLLATE=${TARGET_LOCALE}" /etc/locale.conf &&
-   locale -a | grep -q "^${TARGET_LOCALE}$"; then
+verification_passed=true
+
+# Check config files
+if ! grep -q "LANG=${TARGET_LOCALE}" /etc/locale.conf; then
+    print_error "LANG not set correctly in /etc/locale.conf"
+    verification_passed=false
+fi
+
+if ! grep -q "LC_COLLATE=${TARGET_LOCALE}" /etc/locale.conf; then
+    print_error "LC_COLLATE not set correctly in /etc/locale.conf"
+    verification_passed=false
+fi
+
+# Check if locale is available (allowing for both UTF-8 and utf8 variants)
+if ! locale -a | grep -qE "^en_GB\.(UTF-8|utf8)$"; then
+    print_error "en_GB locale not found in available locales"
+    verification_passed=false
+fi
+
+if $verification_passed; then
     print_success "All configuration files updated successfully"
 else
     print_error "Verification failed - some settings may not be applied"
